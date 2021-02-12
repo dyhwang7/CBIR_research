@@ -1,0 +1,26 @@
+Calibrated image sequences
+--------------------------
+
+All images in the sequence are 768x576 pixels.
+
+The files are stored in:
+
+frames/frame_X.png
+pngwarps/warp_FROM_TO.png
+
+The indices count from 0.
+
+The files in frames/frame_X.png are the original captured images.
+
+pngwarps/warp_FROM_TO.png describes the warp from image FROM to image TO. These
+files store the warp data in 16 bit per channel (with a numeric range of
+0--65535), colour PNG format. The destination of the x coordinate is stored as:
+
+x_dest = red / 64.0 - 10.0
+
+and the destination of the y coordinate is:
+
+y_dest = green / 64.0 - 10.0
+
+The blue channel is set to zero. If the destination is (-1, -1) then the pixel
+does not warp to within the image, and so should not be used.
