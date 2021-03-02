@@ -2960,34 +2960,34 @@ def detect(image, threshold, do_nonmax=1):
 
 			corners.append((x,y))
 
-	# for i in range(0, len(corners)):
-	# 	scores.append(corner_score(image, corners[i][0], corners[i][1]))
-	#
-	# if do_nonmax:
-	# 	#Paint corners into an image
-	# 	sc = numpy.zeros(image.shape);
-	# 	for i in range(0, len(corners)):
-	# 		sc[corners[i][1], corners[i][0]] = scores[i];
-	#
-	# 	nonmax_corners=[]
-	# 	nonmax_scores =[]
-	#
-	# 	for i in range(0, len(corners)):
-	# 		s = scores[i]
-	# 		x = corners[i][0]
-	# 		y = corners[i][1]
-	#
-	# 		if s >= sc[y-1][x+1] and s >= sc[y-1][x] and s >= sc[y-1][x-1] and s >= sc[y][x+1] and s >= sc[y][x-1] and s >= sc[y+1][x+1] and s >= sc[y+1][x] and s >= sc[y+1][x-1]:
-	# 			nonmax_corners.append((x, y))
-	# 			nonmax_scores.append(s)
-	#
-	#
-	# 	return (nonmax_corners, nonmax_scores)
-	#
+	for i in range(0, len(corners)):
+		scores.append(corner_score(image, corners[i][0], corners[i][1]))
+
+	if do_nonmax:
+		#Paint corners into an image
+		sc = numpy.zeros(image.shape);
+		for i in range(0, len(corners)):
+			sc[corners[i][1], corners[i][0]] = scores[i];
+
+		nonmax_corners=[]
+		nonmax_scores =[]
+
+		for i in range(0, len(corners)):
+			s = scores[i]
+			x = corners[i][0]
+			y = corners[i][1]
+
+			if s >= sc[y-1][x+1] and s >= sc[y-1][x] and s >= sc[y-1][x-1] and s >= sc[y][x+1] and s >= sc[y][x-1] and s >= sc[y+1][x+1] and s >= sc[y+1][x] and s >= sc[y+1][x-1]:
+				nonmax_corners.append((x, y))
+				nonmax_scores.append(s)
+
+
+		return (nonmax_corners, nonmax_scores)
+
 
 
 	else:
-		return (corners)
+		return (corners, scores)
 
 
 def is_a_corner(i, posx, posy, b):
