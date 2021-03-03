@@ -31,40 +31,9 @@ def get_pixels(img, y, x, threshold):
         int(img[y, x - 3]) - px, int(img[y - 1, x - 3]) - px, int(img[y - 2, x - 2]) - px, int(img[y - 3, x - 1]) - px,
         int(img[y - 3, x]) - px, int(img[y - 3, x + 1]) - px, int(img[y - 2, x + 2]) - px, int(img[y - 1, x + 3]) - px]
 
-    compared_list = []
-
-    for item in pixel_circle:
-        if item > threshold:
-            compared_list.append(1)
-        elif item < - threshold:
-            compared_list.append(-1)
-        else:
-            compared_list.append(0)
-
+    compared_list = [1 if item > threshold else -1 if item < -threshold else 0 for item in pixel_circle]
 
     return compared_list
-
-# def get_pixels(img, y, x, threshold):
-#     px = img[y, x]
-#     pixel_circle = [int(img[y, x + 3]) - px, int(img[y + 1, x + 3]) - px, int(img[y + 2, x + 2]) - px,
-#                     int(img[y + 3, x + 1]) - px,
-#                     int(img[y + 3, x]) - px, int(img[y + 3, x - 1]) - px, int(img[y + 2, x - 2]) - px,
-#                     int(img[y + 1, x - 3]) - px,
-#                     int(img[y, x - 3]) - px, int(img[y - 1, x - 3]) - px, int(img[y - 2, x - 2]) - px,
-#                     int(img[y - 3, x - 1]) - px,
-#                     int(img[y - 3, x]) - px, int(img[y - 3, x + 1]) - px, int(img[y - 2, x + 2]) - px,
-#                     int(img[y - 1, x + 3]) - px]
-#     compared_list = []
-#
-#     for item in pixel_circle:
-#         if item > threshold:
-#             compared_list.append(1)
-#         elif item < - threshold:
-#             compared_list.append(-1)
-#         else:
-#             compared_list.append(0)
-#     return compared_list
-
 
 '''
 fast detection algorithm:
@@ -94,11 +63,15 @@ def set_up_scales(img):
         scaled_img = img
         w = int(cols / scale_factor ** level)
         scaled_img = imutils.resize(scaled_img, width=w)
-        _kp, _ = fast_test(scaled_img, threshold=20, non_max=0)
+        start = time.process_time()
+        _kp, _ = fast_test(scaled_img, nfeatures_per_level[level] * 2, threshold=20, non_max=1, )
+        print("Processing time:", time.process_time() - start)
         show_image('fast at: {}'.format(level), mark_keypoints(_kp, scaled_img))
         harris_kp = harris_corner(scaled_img, _kp, nfeatures_per_level[level], 0.04)
         print(len(harris_kp))
         _keypoints_list.append(harris_kp)
+        # some conversion to OPENCV's keypoint object
+        # pass them into brief
         show_image('harris at: {}'.format(level), mark_keypoints(harris_kp, scaled_img))
 
     all_scale_keypoints = []
@@ -107,15 +80,13 @@ def set_up_scales(img):
             x = int(_keypoints_list[level][i][0] * (scale_factor ** level))
             y = int(_keypoints_list[level][i][1] * (scale_factor ** level))
             all_scale_keypoints.append((x, y))
-    #     all_scale_keypoints.append(_keypoints_list[level])
-    # all_scale_keypoints.sort(key=lambda x: x[2], reverse=True)
-    # all_scale_keypoints = all_scale_keypoints[:500]
+
     print('length', len(all_scale_keypoints))
     show_image('ours', mark_keypoints(all_scale_keypoints, img))
     return all_scale_keypoints
 
 
-def fast_test(img, threshold, non_max=0):
+def fast_test(img, n, threshold, non_max):
     fast_n = 9
     keypoints = []
     scores = []
@@ -133,12 +104,13 @@ def fast_test(img, threshold, non_max=0):
                     keypoints.append((x, y))
             else:
                 continue
-    for i in range(len(keypoints)):
-        scores.append(corner_score(img, keypoints[i][0], keypoints[i][1]))
+    scores = [corner_score(img, keypoints[i][0], keypoints[i][1]) for i in range(len(keypoints))]
+
     if non_max:
         sc = np.zeros(img.shape)
         for i in range(len(keypoints)):
             sc[keypoints[i][1], keypoints[i][0]] = scores[i]
+
         nonmax_corners = []
         nonmax_scores = []
 
@@ -150,6 +122,9 @@ def fast_test(img, threshold, non_max=0):
                     and s >= sc[y][x - 1] and s >= sc[y + 1][x + 1] and s >= sc[y + 1][x] and s >= sc[y + 1][x - 1]:
                 nonmax_corners.append((x, y))
                 nonmax_scores.append(s)
+        zipped_pairs = zip(nonmax_scores, nonmax_corners)
+        nonmax_corners = [x for _, x in sorted(zipped_pairs, reverse=True)]
+        nonmax_corners = nonmax_corners [0: n]
         return nonmax_corners, nonmax_scores
     return keypoints, scores
 
@@ -161,12 +136,11 @@ def is_a_corner(img, x, y, b):
     if pixel_list.count(-1) >= fast_n or pixel_list.count(1) >= fast_n:
         consecutive = [len(list(g)) for _, g in itertools.groupby(pixel_list)]
         if pixel_list[0] == pixel_list[-1]:
+
             if len(consecutive) > 1:
                 consecutive[0] += consecutive.pop()
         if max(consecutive) >= fast_n:
             return 1
-        else:
-            return 0
     else:
         return 0
     return 0
@@ -179,9 +153,9 @@ def corner_score(img, x, y):
 
     while True:
         if is_a_corner(img, x, y, b):
-            bmin = float(round(b, 6))
+            bmin = int(b)
         else:
-            bmax = float(round(b, 6))
+            bmax = int(b)
         if bmin == bmax - 1 or bmin == bmax:
             return bmin
 
@@ -307,6 +281,7 @@ def euclidean_distance(p, q):
 def run_fast():
     imgpath = 'test_images/cathedral_700.jpg'
     img = cv2.imread(imgpath, 0)
+
     # corners, scores = fast_test(img, 1)
     # corners2, _ = fast_test(img, 0)
     # print(len(corners))
@@ -331,7 +306,8 @@ def run_fast():
     get_average_distance(kp, orb_kp1)
     # intensity_centroid(img, kp, 31)
 
-
+def main():
+    run_fast()
 '''
 def main():
     imgpath = 'test_images/dog.jfif'
