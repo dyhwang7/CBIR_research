@@ -1,6 +1,7 @@
 import cv2
 import math
 import fast.fast9 as fast
+from matplotlib import pyplot as plt
 def show_image(win, img):
     cv2.imshow('{}'.format(win), img)
     k = cv2.waitKey(0) & 0xFF
@@ -22,6 +23,8 @@ def intensity_centroid(img):
     # for i in range(len(kp)):
     #     mc[i] = math.atan2(mu[i]['m01'] / (mu[i]['m00'] + 1e-5), mu[i]['m10'] / (mu[i]['m00'] + 1e-5))
     # return mc
+x = [x for x in ]
+
 
 img = cv2.imread('test_images/dog.jfif', 0)
 
