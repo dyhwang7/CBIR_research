@@ -5912,5 +5912,5 @@ def corner_score(i, posx, posy):
 		if bmin == bmax - 1 or bmin == bmax:
 			return bmin
 
-		b = (bmin + bmax) / 2
+		b = int((bmin + bmax) / 2)
 

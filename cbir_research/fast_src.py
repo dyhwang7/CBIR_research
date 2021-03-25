@@ -2,11 +2,8 @@ import cv2
 import math
 import fast.fast9 as fast
 import numpy as np
-from scipy import signal as sig
-from scipy import ndimage as ndi
 import time
 import itertools
-import math
 import csv
 import imutils
 from pymongo import MongoClient
@@ -203,14 +200,14 @@ def corner_score(img, x, y):
         b = (bmin + bmax) / 2
 
 
-def gradient_x(img):
-    kernel_x = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]], dtype=np.float64)
-    return sig.convolve2d(img, kernel_x, mode='same')
-
-
-def gradient_y(img):
-    kernel_y = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]], dtype=np.float64)
-    return sig.convolve2d(img, kernel_y, mode='same')
+# def gradient_x(img):
+#     kernel_x = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]], dtype=np.float64)
+#     return sig.convolve2d(img, kernel_x, mode='same')
+#
+#
+# def gradient_y(img):
+#     kernel_y = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]], dtype=np.float64)
+#     return sig.convolve2d(img, kernel_y, mode='same')
 
 
 def harris_corner(img, keypoints, n, k, window_size=9):
@@ -261,19 +258,19 @@ def intensity_centroid(img, keypoints, patchsize):
         M = cv2.moments(thresh)
         cX = int(M['m10'] / M['m00'])
         cY = int(M['m01'] / M['m00'])
-        print('cX, cY in 31 x 31: {}'.format((cX, cY)))
+        # print('cX, cY in 31 x 31: {}'.format((cX, cY)))
         color_patch = cv2.cvtColor(gray_patch, cv2.COLOR_GRAY2RGB)
         cv2.circle(color_patch, (cX, cY), 1, (255, 255, 255), -1)
         cX = x + (cX - 16)
         cY = y + (cY - 16)
 
-        print('cX, cY in original image: {}'.format((cX, cY)))
+        # print('cX, cY in original image: {}'.format((cX, cY)))
         orientation = math.atan2((cY - y) * -1, cX - x)
         cv2.circle(color_patch, (16, 16), 1, (0, 0, 255), -1)
-        print('keypoint in original image: {}'.format((x, y)))
-        print('in radians: ', orientation)
-        print('in degrees: ', math.degrees(orientation))
-        show_image('patch', color_patch)
+        # print('keypoint in original image: {}'.format((x, y)))
+        # print('in radians: ', orientation)
+        # print('in degrees: ', math.degrees(orientation))
+        # show_image('patch', color_patch)
         kp.append((x, y, orientation))
     return kp
     # mu = [None] * len(kp)
@@ -345,6 +342,8 @@ def run_fast():
     kp_o1, des1 = get_brief_descriptors(img, keypoints)
 
     # intensity_centroid(img, kp, 31)
+    return kp, img
+
 
 
 def add_box_frames_to_db():
