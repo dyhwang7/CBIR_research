@@ -49,6 +49,7 @@ def set_up_scales(img, scale_factor, nlevels, nfeatures):
     factor = 1.0 / scale_factor
     ndesired_features_per_scale = nfeatures * (1 - factor) / (1 - factor ** nlevels)
 
+
     sum_features = 0
     nfeatures_per_level = []
     for level in range(nlevels - 1):
