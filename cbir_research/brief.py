@@ -387,8 +387,8 @@ S = [[gaussian_X], [gaussian_Y]]
 
 
 def get_r_theta(theta):
-    R = [(math.cos(theta), math.sin(theta)),
-         (-math.sin(theta), math.cos(theta))]
+    R = [[math.cos(theta), math.sin(theta)],
+         [-math.sin(theta), math.cos(theta)]]
     return R
 
 
@@ -460,10 +460,19 @@ def run_brief(img, keypoints, keypoints_with_orientation):
         x = []
         y = []
         for j in range(0, len(gaussian_X)):
-            _x = (gaussian_X[j][0] + 15, gaussian_X[j][1] + 15)
+            _x = gaussian_X[j][0] + 15
+            _y = gaussian_X[j][1] + 15
             x.append(_x)
-            _y = (gaussian_Y[j][0] + 15, gaussian_Y[j][1] + 15)
             y.append(_y)
+            _x = gaussian_Y[j][0] + 15
+            _y = gaussian_Y[j][1] + 15
+            x.append(_x)
+            y.append(_y)
+            # _x = (gaussian_X[j][0] + 15, gaussian_X[j][1] + 15)
+            # x.append(_x)
+            # _y = (gaussian_Y[j][0] + 15, gaussian_Y[j][1] + 15)
+            # y.append(_y)
+
 
             # X_subwindow_avg = get_subwindow_avg(x, img_patch_blur)
             # Y_subwindow_avg = get_subwindow_avg(y, img_patch_blur)
@@ -474,23 +483,28 @@ def run_brief(img, keypoints, keypoints_with_orientation):
 
         s = [x, y]
         S = np.array(s)
+        S.shape
         R = np.array(r)
-        S_theta = np.matmul(S, R)
-        x = []
-        y = []
-        for i in range(len(S_theta)):
-            for j in range(256):
-                coord = S_theta[i][j]
-                x_ = int(coord[0])
-                y_ = int(coord[1])
-                if i == 0:
-                    x.append((y_, x_))
-                else:
-                    y.append((y_, x_))
+        R.shape
+        S_theta = np.matmul(R, S)
+        X = []
+        Y = []
+        isX = True
+        for j in range(512):
+            if isX:
+                x_ = int(S_theta[0][j])
+                y_ = int(S_theta[1][j])
+                X.append((x_, y_))
+                isX = False
+            else:
+                x_ = int(S_theta[0][j])
+                y_ = int(S_theta[1][j])
+                Y.append((x_, y_))
+                isX = True
 
-        for k in range(len(x)):
-            X_subwindow_avg = get_subwindow_avg(x[k], img_patch_blur)
-            Y_subwindow_avg = get_subwindow_avg(y[k], img_patch_blur)
+        for k in range(len(X)):
+            X_subwindow_avg = get_subwindow_avg(X[k], img_patch_blur)
+            Y_subwindow_avg = get_subwindow_avg(Y[k], img_patch_blur)
             if X_subwindow_avg < Y_subwindow_avg:
                 descriptor = descriptor + "1"
             else:
@@ -522,8 +536,8 @@ def run_brief_test(keypoints, keypoint_with_orientation, img):
                 for k in range(len(des[i])):
                     new_des += '{0:08b}'.format(des[i][k])
                 print("brief's binary descriptor", new_des)
-                print("our descriptor ", descriptors[j])
-                print('our des length: ', len(descriptors[j]))
+                print("our descriptor: ", descriptors[j])
+                print('our des length:          ', len(descriptors[j]))
                 XOR = int(new_des, 2) ^ int(descriptors[j], 2)
                 XOR = bin(XOR)[2:].zfill(len(new_des))
                 hamming_distance = [ones for ones in XOR[2:] if ones == '1']
