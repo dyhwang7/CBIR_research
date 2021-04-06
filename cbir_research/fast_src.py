@@ -6,6 +6,10 @@ import time
 import itertools
 import csv
 import imutils
+from pymongo import MongoClient
+import pickle
+from bson.binary import Binary
+from matplotlib import pyplot as plt
 
 
 # show image on new window
@@ -32,6 +36,7 @@ def get_pixels(img, y, x, threshold):
 
     return compared_list
 
+
 '''
 fast detection algorithm:
 iterate through each pixel in the image and find pixels that contain x number of consecutive surrounding pixels
@@ -39,12 +44,11 @@ with itensities either above or below the threshold.
 '''
 
 
-def set_up_scales(img):
-    scale_factor = 1.2
-    nlevels = 8
-    nfeatures = 500
+def set_up_scales(img, scale_factor, nlevels, nfeatures):
+    orb_kp = run_orb(img, nfeatures)
     factor = 1.0 / scale_factor
     ndesired_features_per_scale = nfeatures * (1 - factor) / (1 - factor ** nlevels)
+
 
     sum_features = 0
     nfeatures_per_level = []
@@ -56,31 +60,71 @@ def set_up_scales(img):
 
     _keypoints_list = []
     rows, cols = img.shape
+    _matched_list = []
+    ratio_list = []
+
     for level in range(nlevels):
+        current_kp = []
         scaled_img = img
         w = int(cols / scale_factor ** level)
         scaled_img = imutils.resize(scaled_img, width=w)
         start = time.process_time()
         _kp, _ = fast_test(scaled_img, nfeatures_per_level[level] * 2, threshold=20, non_max=1, )
         print("Processing time:", time.process_time() - start)
-        show_image('fast at: {}'.format(level), mark_keypoints(_kp, scaled_img))
+        # show_image('fast at: {}'.format(level), mark_keypoints(_kp, scaled_img))
         harris_kp = harris_corner(scaled_img, _kp, nfeatures_per_level[level], 0.04)
-        print(len(harris_kp))
-        _keypoints_list.append(harris_kp)
+        for i in range(len(harris_kp)):
+            x = int(harris_kp[i][0] * (scale_factor ** level))
+            y = int(harris_kp[i][1] * (scale_factor ** level))
+            _keypoints_list.append((x, y))
+            current_kp.append((x, y))
+        # show_image('Scale level {}'.format(level + 1), mark_keypoints(current_kp, img))
+        print('current # of kp: ', len(_keypoints_list))
+        # if level % 2 == 0:
+        matched_points = get_matched_point(orb_kp, _keypoints_list)
+        get_average_distance(_keypoints_list, orb_kp)
+        print('cumulative matches: ', len(matched_points))
+        _matched_list.append(len(matched_points))
+    for level in range(nlevels):
+        ratio_list.append(_matched_list[level]/max(_matched_list))
+            # if len(matched_points) > nfeatures/4:
+            #     break
         # some conversion to OPENCV's keypoint object
         # pass them into brief
-        show_image('harris at: {}'.format(level), mark_keypoints(harris_kp, scaled_img))
+        # show_image('harris at: {}'.format(level), mark_keypoints(harris_kp, scaled_img))
+    print('length', len(_keypoints_list))
+    return _keypoints_list, ratio_list
 
-    all_scale_keypoints = []
-    for level in range(nlevels):
-        for i in range(len(_keypoints_list[level])):
-            x = int(_keypoints_list[level][i][0] * (scale_factor ** level))
-            y = int(_keypoints_list[level][i][1] * (scale_factor ** level))
-            all_scale_keypoints.append((x, y))
+def show_metric():
+    average = get_metric()
+    levels = [x for x in range(0, 9)]
+    lines = plt.plot(levels, average)
+    plt.setp(lines, color='blue', linewidth=3.0)
+    plt.ylabel('% of matches found')
+    plt.xlabel('scale')
+    plt.axis([0, 8, 0, 100])
+    plt.grid(color='black', linestyle='-', linewidth=1)
+    plt.show()
 
-    print('length', len(all_scale_keypoints))
-    show_image('ours', mark_keypoints(all_scale_keypoints, img))
-    return all_scale_keypoints
+def get_metric():
+    total_ratio = []
+    row_length = 14
+
+    for i in range(row_length):
+        imgpath = 'box/frames/frame_{}.png'.format(i)
+        img = cv2.imread(imgpath, 0)
+        keypoints, ratio = set_up_scales(img, scale_factor=1.2, nlevels=8, nfeatures=500)
+        total_ratio.append((ratio))
+
+    average = 8 * [0]
+    for col in range(8):
+        for row in range(row_length):
+            average[col] += total_ratio[row][col]
+        average[col] /= row_length
+        average[col] *= 100
+    average.insert(0,0)
+
+    return average
 
 
 def fast_test(img, n, threshold, non_max):
@@ -121,19 +165,18 @@ def fast_test(img, n, threshold, non_max):
                 nonmax_scores.append(s)
         zipped_pairs = zip(nonmax_scores, nonmax_corners)
         nonmax_corners = [x for _, x in sorted(zipped_pairs, reverse=True)]
-        nonmax_corners = nonmax_corners [0: n]
+        nonmax_corners = nonmax_corners[0: n]
         return nonmax_corners, nonmax_scores
     return keypoints, scores
 
 
 def is_a_corner(img, x, y, b):
     fast_n = 9
-
     pixel_list = get_pixels(img, y, x, b)
+
     if pixel_list.count(-1) >= fast_n or pixel_list.count(1) >= fast_n:
         consecutive = [len(list(g)) for _, g in itertools.groupby(pixel_list)]
         if pixel_list[0] == pixel_list[-1]:
-
             if len(consecutive) > 1:
                 consecutive[0] += consecutive.pop()
         if max(consecutive) >= fast_n:
@@ -155,7 +198,6 @@ def corner_score(img, x, y):
             bmax = int(b)
         if bmin == bmax - 1 or bmin == bmax:
             return bmin
-
         b = (bmin + bmax) / 2
 
 
@@ -207,6 +249,7 @@ def harris_corner(img, keypoints, n, k, window_size=9):
 def intensity_centroid(img, keypoints, patchsize):
     kp = []
     half_patchsize = patchsize // 2
+
     for i in keypoints:
         x = i[0]
         y = i[1]
@@ -259,14 +302,13 @@ def get_matched_point(kp1, kp2):
         if (i[0], i[1]) in kp2:
             count += 1
             matching_points.append(i)
-    print('count:', count)
     return matching_points
 
 
 def mark_keypoints(kp, img):
     color_image = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
     for i in range(len(kp)):
-        color_image = cv2.circle(color_image, (kp[i][0], kp[i][1]), 2, (0, 0, 255), -1)
+        color_image = cv2.circle(color_image, (kp[i][0], kp[i][1]), 4, (0, 0, 255), -1)
     return color_image
 
 
@@ -275,34 +317,63 @@ def euclidean_distance(p, q):
     return math.sqrt((q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2)
 
 
-def run_fast():
-    imgpath = 'test_images/cathedral_700.jpg'
-    img = cv2.imread(imgpath, 0)
-
-    # corners, scores = fast_test(img, 1)
-    # corners2, _ = fast_test(img, 0)
-    # print(len(corners))
-    # print(len(corners2))
-    # show_image('fast', mark_keypoints(corners, img))
-    # show_image('fast2', mark_keypoints(corners2, img))
-    orb = cv2.ORB_create(nfeatures=500)
+def run_orb(img, nfeatures):
+    orb = cv2.ORB_create(nfeatures=nfeatures)
     pts = orb.detect(img)
     orb_kp = cv2.KeyPoint_convert(pts)
-
     orb_kp1 = []
+
     for i in orb_kp:
         orb_kp1.append((int(i[0]), int(i[1])))
     orb_kp1 = list(set(orb_kp1))
-    print(len(orb_kp))
-    print(len(orb_kp1))
-    kp = set_up_scales(img)
-    # show_image('orb', mark_keypoints(orb_kp, img))
 
-    show_image('orb', mark_keypoints(orb_kp1, img))
-    matching_keypoints = get_matched_point(orb_kp1, kp)
-    get_average_distance(kp, orb_kp1)
+    return orb_kp1
+
+
+def run_fast():
+    imgpath = 'test_images/cathedral_700.jpg'
+    img = cv2.imread(imgpath, 0)
+    orb_kp = run_orb(img, 500)
+    keypoints, _ = set_up_scales(img, scale_factor=1.2, nlevels=8, nfeatures=500)
+
+    show_image(imgpath, mark_keypoints(keypoints, img))
+    show_image('orb', mark_keypoints(orb_kp, img))
+    get_matched_point(orb_kp, keypoints)
+    get_average_distance(keypoints, orb_kp)
+    kp_o1, des1 = get_brief_descriptors(img, keypoints)
+
     # intensity_centroid(img, kp, 31)
     return kp, img
+
+
+
+def add_box_frames_to_db():
+    for i in range(14):
+        imgpath = 'box/frames/frame_{}.png'.format(i)
+        img = cv2.imread(imgpath, 0)
+        keypoints = set_up_scales(img, scale_factor=1.2, nlevels=8, nfeatures=500)
+        # kp_o, des = get_brief_descriptors(img, keypoints)
+        # add_to_database(imgpath, keypoints, des)
+
+
+def add_to_database(imgpath, keypoints, descriptors):
+    conn = MongoClient('localhost', 27017)
+    db = conn["image_db"]
+    collection = db['images']
+    entry = {
+        'imgpath': imgpath,
+        'keypoints': keypoints,
+        'descriptors': Binary(pickle.dumps(descriptors, protocol=2), subtype=128)
+    }
+    collection.insert_one(entry)
+
+
+def get_brief_descriptors(img, coordinates_list):
+
+    keypoints_objects = cv2.KeyPoint_convert(coordinates_list)
+    brief = cv2.xfeatures2d.BriefDescriptorExtractor_create()
+    _, des = brief.compute(img, keypoints_objects)
+    return keypoints_objects, des
 
 
 def main():
@@ -406,4 +477,3 @@ def main():
     intensity_centroid(img, h_kp, 31)
 
 '''
-
