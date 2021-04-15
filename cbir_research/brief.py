@@ -420,8 +420,12 @@ def get_crop_patch(keypoint, img):
 
 def get_subwindow_avg(px, img):
     height, width = img.shape
-    y_ = px[0] - 2
-    x_ = px[1] - 2
+    x_ = int(px[1]) - 2
+    y_ = int(px[0]) - 2
+    if (y_ < 0):
+        y_ = y_ * -1
+    if (x_ < 0):
+        x_ = x_ * -1
     px_patch = []
     for i in range(x_, x_ + 5):
         for j in range(y_, y_ + 5):
@@ -455,60 +459,23 @@ def run_brief(img, keypoints, keypoints_with_orientation):
         img_patch_blur = cv2.integral(img_patch)
         orientation = keypoints_with_orientation[i]
         orientation = orientation[2]
-        r = get_r_theta(orientation)
+        R = get_r_theta(orientation)
         descriptor = ""
-        x = []
-        y = []
         for j in range(0, len(gaussian_X)):
-            _x = gaussian_X[j][0] + 15
-            _y = gaussian_X[j][1] + 15
-            x.append(_x)
-            y.append(_y)
-            _x = gaussian_Y[j][0] + 15
-            _y = gaussian_Y[j][1] + 15
-            x.append(_x)
-            y.append(_y)
-            # _x = (gaussian_X[j][0] + 15, gaussian_X[j][1] + 15)
-            # x.append(_x)
-            # _y = (gaussian_Y[j][0] + 15, gaussian_Y[j][1] + 15)
-            # y.append(_y)
-
-
-            # X_subwindow_avg = get_subwindow_avg(x, img_patch_blur)
-            # Y_subwindow_avg = get_subwindow_avg(y, img_patch_blur)
-            # if X_subwindow_avg < Y_subwindow_avg:
-            #     descriptor = descriptor + "1"
-            # else:
-            #     descriptor = descriptor + "0"
-
-        s = [x, y]
-        S = np.array(s)
-        S.shape
-        R = np.array(r)
-        R.shape
-        S_theta = np.matmul(R, S)
-        X = []
-        Y = []
-        isX = True
-        for j in range(512):
-            if isX:
-                x_ = int(S_theta[0][j])
-                y_ = int(S_theta[1][j])
-                X.append((x_, y_))
-                isX = False
-            else:
-                x_ = int(S_theta[0][j])
-                y_ = int(S_theta[1][j])
-                Y.append((x_, y_))
-                isX = True
-
-        for k in range(len(X)):
-            X_subwindow_avg = get_subwindow_avg(X[k], img_patch_blur)
-            Y_subwindow_avg = get_subwindow_avg(Y[k], img_patch_blur)
+            _x = (gaussian_X[j][0] + 15, gaussian_X[j][1] + 15)
+            _y = (gaussian_Y[j][0] + 15, gaussian_Y[j][1] + 15)
+            R = np.array(R)
+            S_x = np.array(_x)
+            S_theta_x = np.matmul(R, S_x)
+            S_y = np.array(_y)
+            S_theta_y = np.matmul(R, S_y)
+            X_subwindow_avg = get_subwindow_avg(S_theta_x, img_patch_blur)
+            Y_subwindow_avg = get_subwindow_avg(S_theta_y, img_patch_blur)
             if X_subwindow_avg < Y_subwindow_avg:
                 descriptor = descriptor + "1"
             else:
                 descriptor = descriptor + "0"
+
         descriptors.append(descriptor)
 
     return descriptors
@@ -535,8 +502,8 @@ def run_brief_test(keypoints, keypoint_with_orientation, img):
                 new_des = ''
                 for k in range(len(des[i])):
                     new_des += '{0:08b}'.format(des[i][k])
-                print("brief's binary descriptor", new_des)
-                print("our descriptor: ", descriptors[j])
+                print("brief's binary descriptor: ", new_des)
+                print("our descriptor:            ", descriptors[j])
                 print('our des length:          ', len(descriptors[j]))
                 XOR = int(new_des, 2) ^ int(descriptors[j], 2)
                 XOR = bin(XOR)[2:].zfill(len(new_des))
@@ -545,3 +512,9 @@ def run_brief_test(keypoints, keypoint_with_orientation, img):
                 print('hamming_distance: ', len(hamming_distance))
                 count += 1
     print(count)
+
+    duplicates = len(descriptors) - len(set(descriptors))
+    if duplicates == 0:
+        print("No duplicate descriptors")
+    else:
+        print("Total duplicate descriptors: ", duplicates)
