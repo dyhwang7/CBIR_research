@@ -440,7 +440,7 @@ def run_fast():
         elif quadrant == 3:
             scaled_img = img2[row // 2:, col // 2:]
         quadrant_kp, _ = set_up_scales(scaled_img, scale_factor=1.2, nlevels=8, nfeatures=125)
-        show_image('quadrant2', mark_keypoints(quadrant_kp, scaled_img))
+        show_image('quadrant {}'.format(quadrant + 1), mark_keypoints(quadrant_kp, scaled_img))
         test_kp = []
         #change the x,y value according to the shifted quadrant
         for i in quadrant_kp:
