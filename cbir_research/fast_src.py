@@ -42,8 +42,6 @@ fast detection algorithm:
 iterate through each pixel in the image and find pixels that contain x number of consecutive surrounding pixels
 with itensities either above or below the threshold. 
 '''
-
-
 def set_up_scales(img, scale_factor, nlevels, nfeatures):
     orb_kp = run_orb(img, nfeatures)
     factor = 1.0 / scale_factor
@@ -94,6 +92,83 @@ def set_up_scales(img, scale_factor, nlevels, nfeatures):
         # show_image('harris at: {}'.format(level), mark_keypoints(harris_kp, scaled_img))
     print('length', len(_keypoints_list))
     return _keypoints_list, ratio_list
+#
+# def set_up_scales(img, scale_factor, nlevels, nfeatures):
+#     orb_kp = run_orb(img, nfeatures)
+#     factor = 1.0 / scale_factor
+#     ndesired_features_per_scale = nfeatures * (1 - factor) / (1 - factor ** nlevels)
+#
+#     sum_features = 0
+#     nfeatures_per_level = []
+#     for level in range(nlevels - 1):
+#         nfeatures_per_level.append(round(ndesired_features_per_scale))
+#         sum_features += nfeatures_per_level[level]
+#         ndesired_features_per_scale *= factor
+#     nfeatures_per_level.append(max(nfeatures - sum_features, 0))
+#
+#     _keypoints_list = []
+#     rows, cols = img.shape
+#     _matched_list = []
+#     ratio_list = []
+#
+#     quadrant = 0
+#     for level in range(nlevels):
+#         current_kp = []
+#         scaled_img = img
+#         w = int(cols / scale_factor ** level)
+#         scaled_img = imutils.resize(scaled_img, width=w)
+#         print('shape', scaled_img.shape)
+#         row, col = scaled_img.shape
+#
+#         if quadrant == 0:
+#             scaled_img = scaled_img[:row // 2, :col // 2]
+#         elif quadrant == 1:
+#             scaled_img = scaled_img[:row // 2, col // 2:]
+#         elif quadrant == 2:
+#             scaled_img = scaled_img[row // 2:, : col // 2]
+#         elif quadrant == 3:
+#             scaled_img = scaled_img[row // 2:, col // 2:]
+#         show_image('quadrant', scaled_img)
+#         start = time.process_time()
+#         _kp, _ = fast_test(scaled_img, nfeatures_per_level[level] * 2 // 4, threshold=20, non_max=1)
+#         print("Processing time:", time.process_time() - start)
+#         # show_image('fast at: {}'.format(level), mark_keypoints(_kp, scaled_img))
+#         harris_kp = harris_corner(scaled_img, _kp, nfeatures_per_level[level] // 4, 0.04)
+#         for i in range(len(harris_kp)):
+#             x = harris_kp[i][0]
+#             y = harris_kp[i][1]
+#             if quadrant == 1:
+#                 x = x + col // 2
+#             elif quadrant == 2:
+#                 y = y + row // 2
+#             elif quadrant == 3:
+#                 x = x + col // 2
+#                 y = y + row // 2
+#             x = int(x * (scale_factor ** level))
+#             y = int(y * (scale_factor ** level))
+#             _keypoints_list.append((x, y))
+#             current_kp.append((x, y))
+#         show_image('Scale level {}'.format(level + 1), mark_keypoints(current_kp, img))
+#         print('current # of kp: ', len(_keypoints_list))
+#         # if level % 2 == 0:
+#         matched_points = get_matched_point(orb_kp, _keypoints_list)
+#         get_average_distance(_keypoints_list, orb_kp)
+#         print('cumulative matches: ', len(matched_points))
+#         _matched_list.append(len(matched_points))
+#         quadrant += 1
+#         if quadrant > 3:
+#             quadrant = 0
+#
+#     for level in range(nlevels):
+#         ratio_list.append(_matched_list[level] / max(_matched_list))
+#         # if len(matched_points) > nfeatures/4:
+#         #     break
+#         # some conversion to OPENCV's keypoint object
+#         # pass them into brief
+#         # show_image('harris at: {}'.format(level), mark_keypoints(harris_kp, scaled_img))
+#     print('length', len(_keypoints_list))
+#     return _keypoints_list, ratio_list
+
 
 def show_metric():
     average = get_metric()
@@ -105,6 +180,7 @@ def show_metric():
     plt.axis([0, 8, 0, 100])
     plt.grid(color='black', linestyle='-', linewidth=1)
     plt.show()
+
 
 def get_metric():
     total_ratio = []
@@ -122,7 +198,7 @@ def get_metric():
             average[col] += total_ratio[row][col]
         average[col] /= row_length
         average[col] *= 100
-    average.insert(0,0)
+    average.insert(0, 0)
 
     return average
 
@@ -247,13 +323,11 @@ def harris_corner(img, keypoints, n, k, window_size=9):
 
 
 def intensity_centroid(img, keypoints, patchsize):
-    kp = []
     half_patchsize = patchsize // 2
-
+    orientation_list = []
     for i in keypoints:
         x = i[0]
         y = i[1]
-        kp.append((x, y))
         gray_patch = img[y - half_patchsize: y + half_patchsize + 1, x - half_patchsize: x + half_patchsize + 1]
         ret, thresh = cv2.threshold(gray_patch, 127, 255, 0)
         M = cv2.moments(thresh)
@@ -265,15 +339,16 @@ def intensity_centroid(img, keypoints, patchsize):
         cX = x + (cX - 16)
         cY = y + (cY - 16)
 
-        # print('cX, cY in original image: {}'.format((cX, cY)))
+        print('cX, cY in original image: {}'.format((cX, cY)))
         orientation = math.atan2((cY - y) * -1, cX - x)
         cv2.circle(color_patch, (16, 16), 1, (0, 0, 255), -1)
-        # print('keypoint in original image: {}'.format((x, y)))
-        # print('in radians: ', orientation)
-        # print('in degrees: ', math.degrees(orientation))
-        # show_image('patch', color_patch)
-        kp.append((x, y, orientation))
-    return kp
+        print('keypoint in original image: {}'.format((x, y)))
+        print('in radians: ', orientation)
+        print('in degrees: ', math.degrees(orientation))
+        show_image('patch', color_patch)
+        orientation_list.append(orientation)
+    return orientation_list
+
     # mu = [None] * len(kp)
     # for i in range(len(kp)):
     #     mu[i] = cv2.moments(kp[i])
@@ -289,7 +364,7 @@ def get_average_distance(kp1, kp2):
     for i in kp1:
         distance = []
         for j in kp2:
-            distance.append(euclidean_distance((i[0], i[1]), j))
+            distance.append(euclidean_distance((i[0], i[1]), (j[0], j[1])))
         sum += min(distance)
 
     print('Average distance with matching points', (sum / len(kp1)))
@@ -336,6 +411,50 @@ def run_fast():
     orb_kp = run_orb(img, 500)
     keypoints, _ = set_up_scales(img, scale_factor=1.2, nlevels=8, nfeatures=500)
 
+    img2 = cv2.imread(imgpath, 0)
+    row, col = img2.shape
+
+    keypoints_per_quadrant = [[],[],[],[]]
+
+    for k in keypoints:
+        if k[0] < col // 2 and k[1] < row // 2:
+            keypoints_per_quadrant[0].append((k[0], k[1]))
+        elif k[0] > col // 2 and k[1] < row // 2:
+            keypoints_per_quadrant[1].append((k[0] - col // 2, k[1]))
+        elif k[0] < col // 2 and k[1] > row // 2:
+            keypoints_per_quadrant[2].append((k[0], k[1] - row // 2))
+        elif k[0] > col // 2 and k[1] > row // 2:
+            keypoints_per_quadrant[3].append((k[0] - col // 2, k[1] - row // 2))
+
+    # for i in keypoints_per_quadrant:
+    #     show_image('quadrant', mark_keypoints(i, img2))
+
+
+    for quadrant in range(4):
+        if quadrant == 0:
+            scaled_img = img2[:row // 2, :col // 2]
+        elif quadrant == 1:
+            scaled_img = img2[:row // 2, col // 2:]
+        elif quadrant == 2:
+            scaled_img = img2[row // 2:, : col // 2]
+        elif quadrant == 3:
+            scaled_img = img2[row // 2:, col // 2:]
+        quadrant_kp, _ = set_up_scales(scaled_img, scale_factor=1.2, nlevels=8, nfeatures=125)
+        show_image('quadrant2', mark_keypoints(quadrant_kp, scaled_img))
+        test_kp = []
+        #change the x,y value according to the shifted quadrant
+        for i in quadrant_kp:
+            test_kp.append((i[0], i[1]))
+        print()
+        print('length of keypoints by first method {}'.format(len(keypoints_per_quadrant[quadrant])))
+        print('length of keypoints by second method {}'.format(len(quadrant_kp)))
+        print(len(get_matched_point(keypoints_per_quadrant[quadrant], test_kp)))
+        get_average_distance(keypoints_per_quadrant[quadrant], test_kp)
+
+        print()
+
+
+
     show_image(imgpath, mark_keypoints(keypoints, img))
     show_image('orb', mark_keypoints(orb_kp, img))
     get_matched_point(orb_kp, keypoints)
@@ -343,8 +462,7 @@ def run_fast():
     kp_o1, des1 = get_brief_descriptors(img, keypoints)
 
     # intensity_centroid(img, kp, 31)
-    return kp, img
-
+    return keypoints, img
 
 
 def add_box_frames_to_db():
@@ -369,7 +487,6 @@ def add_to_database(imgpath, keypoints, descriptors):
 
 
 def get_brief_descriptors(img, coordinates_list):
-
     keypoints_objects = cv2.KeyPoint_convert(coordinates_list)
     brief = cv2.xfeatures2d.BriefDescriptorExtractor_create()
     _, des = brief.compute(img, keypoints_objects)
@@ -379,6 +496,9 @@ def get_brief_descriptors(img, coordinates_list):
 def main():
     run_fast()
 
+
+if __name__ == '__main__':
+    main()
 
 '''
 def main():

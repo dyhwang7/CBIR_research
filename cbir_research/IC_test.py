@@ -171,9 +171,9 @@ def main():
     corners = fast.detect(img, 20, 0)
     print("FAST-9 Processing time:", time.process_time() - start_FAST12)
 
-    for i in range(len(corners)):
-        img3 = cv2.circle(img3, (corners[i][0], corners[i][1]), 2, (0, 0, 255), -1)
-    show_image('img3', img3)
+    # for i in range(len(corners)):
+    #     img3 = cv2.circle(img3, (corners[i][0], corners[i][1]), 2, (0, 0, 255), -1)
+    # show_image('img3', img3)
 
     # nonmax_corners, _ = non_max(keypoints, img)
     # for i in range(len(nonmax_corners)):
@@ -283,4 +283,3 @@ if __name__ == "__main__":
     main()
 
 
-tjeklwjtkl

@@ -2,9 +2,9 @@ import math
 import cv2
 import time
 import itertools
-import fast.fast9 as fast
-import numpy as np
 
+import numpy as np
+import fast_src as fast
 
 # Start: From previous main...
 def get_pixels(img, y, x, threshold):
@@ -47,6 +47,7 @@ def fast_test(img, threshold):
             else:
                 continue
     return keypoints
+
 
 
 def draw_keypoints(keypoint, img, win):
@@ -387,8 +388,8 @@ S = [[gaussian_X], [gaussian_Y]]
 
 
 def get_r_theta(theta):
-    R = [(math.cos(theta), math.sin(theta)),
-         (-math.sin(theta), math.cos(theta))]
+    R = [[math.cos(theta), math.sin(theta)],
+         [-math.sin(theta), math.cos(theta)]]
     return R
 
 
@@ -446,6 +447,8 @@ def get_subwindow_avg(px, img):
     return total / len(px_patch)
 
 
+
+
 def run_brief(img, keypoints, keypoints_with_orientation):
     descriptors = []
 
@@ -472,7 +475,7 @@ def run_brief(img, keypoints, keypoints_with_orientation):
             # else:
             #     descriptor = descriptor + "0"
 
-        s = [x, y]
+        s = [[x], [y]]
         S = np.array(s)
         R = np.array(r)
         S_theta = np.matmul(S, R)
@@ -531,3 +534,9 @@ def run_brief_test(keypoints, keypoint_with_orientation, img):
                 print('hamming_distance: ', len(hamming_distance))
                 count += 1
     print(count)
+
+imgpath = 'test_images/cathedral_700.jpg'
+img = cv2.imread(imgpath, 0)
+_kp = fast_test(img, 20)
+orientation = fast.intensity_centroid(img, _kp, 31)
+des = run_brief(img, _kp, orientation)
