@@ -421,8 +421,12 @@ def get_crop_patch(keypoint, img):
 
 def get_subwindow_avg(px, img):
     height, width = img.shape
-    y_ = px[0] - 2
-    x_ = px[1] - 2
+    x_ = int(px[1]) - 2
+    y_ = int(px[0]) - 2
+    if (y_ < 0):
+        y_ = y_ * -1
+    if (x_ < 0):
+        x_ = x_ * -1
     px_patch = []
     for i in range(x_, x_ + 5):
         for j in range(y_, y_ + 5):
@@ -458,14 +462,12 @@ def run_brief(img, keypoints, keypoints_with_orientation):
         img_patch_blur = cv2.integral(img_patch)
         orientation = keypoints_with_orientation[i]
         orientation = orientation[2]
-        r = get_r_theta(orientation)
+        R = get_r_theta(orientation)
         descriptor = ""
-        x = []
-        y = []
         for j in range(0, len(gaussian_X)):
             _x = (gaussian_X[j][0] + 15, gaussian_X[j][1] + 15)
-            x.append(_x)
             _y = (gaussian_Y[j][0] + 15, gaussian_Y[j][1] + 15)
+<<<<<<< HEAD
             y.append(_y)
 
             # X_subwindow_avg = get_subwindow_avg(x, img_patch_blur)
@@ -494,10 +496,20 @@ def run_brief(img, keypoints, keypoints_with_orientation):
         for k in range(len(x)):
             X_subwindow_avg = get_subwindow_avg(x[k], img_patch_blur)
             Y_subwindow_avg = get_subwindow_avg(y[k], img_patch_blur)
+=======
+            R = np.array(R)
+            S_x = np.array(_x)
+            S_theta_x = np.matmul(R, S_x)
+            S_y = np.array(_y)
+            S_theta_y = np.matmul(R, S_y)
+            X_subwindow_avg = get_subwindow_avg(S_theta_x, img_patch_blur)
+            Y_subwindow_avg = get_subwindow_avg(S_theta_y, img_patch_blur)
+>>>>>>> f7ac455cce05a9b770adaa0b40c22358e3a27b56
             if X_subwindow_avg < Y_subwindow_avg:
                 descriptor = descriptor + "1"
             else:
                 descriptor = descriptor + "0"
+
         descriptors.append(descriptor)
 
     return descriptors
@@ -524,9 +536,9 @@ def run_brief_test(keypoints, keypoint_with_orientation, img):
                 new_des = ''
                 for k in range(len(des[i])):
                     new_des += '{0:08b}'.format(des[i][k])
-                print("brief's binary descriptor", new_des)
-                print("our descriptor ", descriptors[j])
-                print('our des length: ', len(descriptors[j]))
+                print("brief's binary descriptor: ", new_des)
+                print("our descriptor:            ", descriptors[j])
+                print('our des length:          ', len(descriptors[j]))
                 XOR = int(new_des, 2) ^ int(descriptors[j], 2)
                 XOR = bin(XOR)[2:].zfill(len(new_des))
                 hamming_distance = [ones for ones in XOR[2:] if ones == '1']
@@ -535,8 +547,16 @@ def run_brief_test(keypoints, keypoint_with_orientation, img):
                 count += 1
     print(count)
 
+<<<<<<< HEAD
 imgpath = 'test_images/cathedral_700.jpg'
 img = cv2.imread(imgpath, 0)
 _kp = fast_test(img, 20)
 orientation = fast.intensity_centroid(img, _kp, 31)
 des = run_brief(img, _kp, orientation)
+=======
+    duplicates = len(descriptors) - len(set(descriptors))
+    if duplicates == 0:
+        print("No duplicate descriptors")
+    else:
+        print("Total duplicate descriptors: ", duplicates)
+>>>>>>> f7ac455cce05a9b770adaa0b40c22358e3a27b56

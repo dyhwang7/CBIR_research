@@ -6,10 +6,10 @@ import time
 import itertools
 import csv
 import imutils
-from pymongo import MongoClient
+# from pymongo import MongoClient
 import pickle
-from bson.binary import Binary
-from matplotlib import pyplot as plt
+# from bson.binary import Binary
+# from matplotlib import pyplot as plt
 
 
 # show image on new window
