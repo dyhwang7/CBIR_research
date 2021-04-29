@@ -6,10 +6,10 @@ import time
 import itertools
 import csv
 import imutils
-# from pymongo import MongoClient
+from pymongo import MongoClient
 import pickle
 # from bson.binary import Binary
-# from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt
 
 
 # show image on new window
@@ -36,12 +36,12 @@ def get_pixels(img, y, x, threshold):
 
     return compared_list
 
-
 '''
 fast detection algorithm:
 iterate through each pixel in the image and find pixels that contain x number of consecutive surrounding pixels
 with itensities either above or below the threshold. 
 '''
+
 def set_up_scales(img, scale_factor, nlevels, nfeatures):
     orb_kp = run_orb(img, nfeatures)
     factor = 1.0 / scale_factor
@@ -67,7 +67,7 @@ def set_up_scales(img, scale_factor, nlevels, nfeatures):
         w = int(cols / scale_factor ** level)
         scaled_img = imutils.resize(scaled_img, width=w)
         start = time.process_time()
-        _kp, _ = fast_test(scaled_img, nfeatures_per_level[level] * 2, threshold=20, non_max=1, )
+        _kp, _ = fast_test(scaled_img, nfeatures_per_level[level] * 2, threshold=20, non_max=1)
         print("Processing time:", time.process_time() - start)
         # show_image('fast at: {}'.format(level), mark_keypoints(_kp, scaled_img))
         harris_kp = harris_corner(scaled_img, _kp, nfeatures_per_level[level], 0.04)
@@ -92,7 +92,7 @@ def set_up_scales(img, scale_factor, nlevels, nfeatures):
         # show_image('harris at: {}'.format(level), mark_keypoints(harris_kp, scaled_img))
     print('length', len(_keypoints_list))
     return _keypoints_list, ratio_list
-#
+
 # def set_up_scales(img, scale_factor, nlevels, nfeatures):
 #     orb_kp = run_orb(img, nfeatures)
 #     factor = 1.0 / scale_factor
@@ -416,40 +416,48 @@ def run_fast():
 
     keypoints_per_quadrant = [[],[],[],[]]
 
-    for k in keypoints:
-        if k[0] < col // 2 and k[1] < row // 2:
-            keypoints_per_quadrant[0].append((k[0], k[1]))
-        elif k[0] > col // 2 and k[1] < row // 2:
-            keypoints_per_quadrant[1].append((k[0] - col // 2, k[1]))
-        elif k[0] < col // 2 and k[1] > row // 2:
-            keypoints_per_quadrant[2].append((k[0], k[1] - row // 2))
-        elif k[0] > col // 2 and k[1] > row // 2:
-            keypoints_per_quadrant[3].append((k[0] - col // 2, k[1] - row // 2))
+    # for k in keypoints:
+    #     if k[0] < col // 2 and k[1] < row // 2:
+    #         keypoints_per_quadrant[0].append((k[0], k[1]))
+    #     elif k[0] > col // 2 and k[1] < row // 2:
+    #         keypoints_per_quadrant[1].append((k[0] - col // 2, k[1]))
+    #     elif k[0] < col // 2 and k[1] > row // 2:
+    #         keypoints_per_quadrant[2].append((k[0], k[1] - row // 2))
+    #     elif k[0] > col // 2 and k[1] > row // 2:
+    #         keypoints_per_quadrant[3].append((k[0] - col // 2, k[1] - row // 2))
 
     # for i in keypoints_per_quadrant:
     #     show_image('quadrant', mark_keypoints(i, img2))
 
-
+    split = 4
+    quadrant_kp = []
     for quadrant in range(4):
         if quadrant == 0:
             scaled_img = img2[:row // 2, :col // 2]
+            x_shift = 0
+            y_shift = 0
         elif quadrant == 1:
             scaled_img = img2[:row // 2, col // 2:]
+            x_shift = col // 2
+            y_shift = 0
         elif quadrant == 2:
             scaled_img = img2[row // 2:, : col // 2]
+            x_shift = 0
+            y_shift = row // 2
         elif quadrant == 3:
             scaled_img = img2[row // 2:, col // 2:]
-        quadrant_kp, _ = set_up_scales(scaled_img, scale_factor=1.2, nlevels=8, nfeatures=125)
-        show_image('quadrant {}'.format(quadrant + 1), mark_keypoints(quadrant_kp, scaled_img))
-        test_kp = []
-        #change the x,y value according to the shifted quadrant
-        for i in quadrant_kp:
-            test_kp.append((i[0], i[1]))
+            x_shift = col // 2
+            y_shift = row // 2
+        temp, _ = set_up_scales(scaled_img, scale_factor=1.2, nlevels=8, nfeatures=125)
+
+        for i in temp:
+            quadrant_kp.append((i[0] + x_shift, i[1] + y_shift))
+        show_image('quadrant {}'.format(quadrant + 1), mark_keypoints(quadrant_kp, img2))
         print()
-        print('length of keypoints by first method {}'.format(len(keypoints_per_quadrant[quadrant])))
+        print('length of keypoints by first method {}'.format(len(keypoints)))
         print('length of keypoints by second method {}'.format(len(quadrant_kp)))
-        print(len(get_matched_point(keypoints_per_quadrant[quadrant], test_kp)))
-        get_average_distance(keypoints_per_quadrant[quadrant], test_kp)
+        print(len(get_matched_point(keypoints, quadrant_kp)))
+        get_average_distance(keypoints, quadrant_kp)
 
         print()
 
