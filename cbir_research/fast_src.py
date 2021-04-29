@@ -10,6 +10,10 @@ from pymongo import MongoClient
 import pickle
 # from bson.binary import Binary
 from matplotlib import pyplot as plt
+<<<<<<< HEAD
+=======
+import concurrent.futures
+>>>>>>> 0244e88b6f58f7a307d428cea742554e5b63631a
 
 
 # show image on new window
@@ -345,7 +349,7 @@ def intensity_centroid(img, keypoints, patchsize):
         print('keypoint in original image: {}'.format((x, y)))
         print('in radians: ', orientation)
         print('in degrees: ', math.degrees(orientation))
-        show_image('patch', color_patch)
+        # show_image('patch', color_patch)
         orientation_list.append(orientation)
     return orientation_list
 
