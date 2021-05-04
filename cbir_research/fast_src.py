@@ -422,8 +422,8 @@ def draw_histogram(distance):
     a = np.hstack(arr)
 
     _ = plt.hist(a, bins='auto')
-    plt.show()
-
+    # plt.show()
+    return under_five_count
 
 def run_orb(img, nfeatures):
     orb = cv2.ORB_create(nfeatures=nfeatures)
@@ -438,8 +438,7 @@ def run_orb(img, nfeatures):
     return orb_kp1
 
 
-def run_fast():
-    imgpath = 'test_images/cathedral_700.jpg'
+def run_fast(imgpath):
     img = cv2.imread(imgpath, 0)
     orb_kp = run_orb(img, 500)
     keypoints, _ = set_up_scales(img, scale_factor=1.2, nlevels=8, nfeatures=500)
@@ -487,14 +486,14 @@ def run_fast():
 
         for i in temp:
             quadrant_kp.append((i[0] + x_shift, i[1] + y_shift))
-        show_image('quadrant {}'.format(quadrant + 1), mark_keypoints(quadrant_kp, img2))
+        # show_image('quadrant {}'.format(quadrant + 1), mark_keypoints(quadrant_kp, img2))
         print()
         print('length of keypoints by first method {}'.format(len(keypoints)))
         print('length of keypoints by second method {}'.format(len(quadrant_kp)))
         print(len(get_matched_point(quadrant_kp, keypoints)))
         get_average_distance(quadrant_kp, keypoints)
         distance = get_minimum_distance(quadrant_kp, keypoints)
-        draw_histogram(distance)
+        distance_count = draw_histogram(distance)
 
         print()
 
@@ -507,7 +506,7 @@ def run_fast():
     # kp_o1, des1 = get_brief_descriptors(img, keypoints)
     #
     # # intensity_centroid(img, kp, 31)
-    return keypoints, img
+    return keypoints, img, distance_count
 
 
 def add_box_frames_to_db():
@@ -539,7 +538,15 @@ def get_brief_descriptors(img, coordinates_list):
 
 
 def main():
-    run_fast()
+    path_list = ['test_images/cathedral_700.jpg', 'test_images/duomo1.jpg', 'test_images/duomo2.jpg',
+                 'test_images/hagia_1.jpg', 'test_images/hagia_2.jpg', 'test_images/hagia_3.jpg']
+    d_list = []
+    for i in range(4):
+        path_list.append('test_images/frame_{}.png'.format(i))
+    for i in path_list:
+        _, _, distance = run_fast(i)
+        d_list.append(distance)
+    print(d_list)
 
 
 if __name__ == '__main__':
