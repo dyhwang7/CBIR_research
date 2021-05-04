@@ -10,10 +10,8 @@ from pymongo import MongoClient
 import pickle
 # from bson.binary import Binary
 from matplotlib import pyplot as plt
-<<<<<<< HEAD
-=======
+
 import concurrent.futures
->>>>>>> 0244e88b6f58f7a307d428cea742554e5b63631a
 
 
 # show image on new window
@@ -72,7 +70,7 @@ def set_up_scales(img, scale_factor, nlevels, nfeatures):
         scaled_img = imutils.resize(scaled_img, width=w)
         start = time.process_time()
         _kp, _ = fast_test(scaled_img, nfeatures_per_level[level] * 2, threshold=20, non_max=1)
-        print("Processing time:", time.process_time() - start)
+        # print("Processing time:", time.process_time() - start)
         # show_image('fast at: {}'.format(level), mark_keypoints(_kp, scaled_img))
         harris_kp = harris_corner(scaled_img, _kp, nfeatures_per_level[level], 0.04)
         for i in range(len(harris_kp)):
@@ -373,6 +371,16 @@ def get_average_distance(kp1, kp2):
 
     print('Average distance with matching points', (sum / len(kp1)))
 
+def get_minimum_distance(kp1, kp2):
+    min_list = []
+
+    for i in kp1:
+        min_d = []
+        for j in kp2:
+            min_d.append(euclidean_distance((i[0], i[1]), (j[0], j[1])))
+        min_list.append(min(min_d))
+
+    return min_list
 
 def get_matched_point(kp1, kp2):
     count = 0
@@ -394,6 +402,27 @@ def mark_keypoints(kp, img):
 # used to check the euclidean distance between points
 def euclidean_distance(p, q):
     return math.sqrt((q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2)
+
+def draw_histogram(distance):
+    print(distance)
+    under_five_count = [0] * 5
+    for i in distance:
+        if i < 1:
+            under_five_count[0] += 1
+        elif i < 2:
+            under_five_count[1] += 1
+        elif i < 3:
+            under_five_count[2] += 1
+        elif i < 4:
+            under_five_count[3] += 1
+        elif i < 5:
+            under_five_count[4] += 1
+    print(under_five_count)
+    arr = np.array(distance)
+    a = np.hstack(arr)
+
+    _ = plt.hist(a, bins='auto')
+    plt.show()
 
 
 def run_orb(img, nfeatures):
@@ -418,6 +447,8 @@ def run_fast():
     img2 = cv2.imread(imgpath, 0)
     row, col = img2.shape
 
+
+
     keypoints_per_quadrant = [[],[],[],[]]
 
     # for k in keypoints:
@@ -429,7 +460,7 @@ def run_fast():
     #         keypoints_per_quadrant[2].append((k[0], k[1] - row // 2))
     #     elif k[0] > col // 2 and k[1] > row // 2:
     #         keypoints_per_quadrant[3].append((k[0] - col // 2, k[1] - row // 2))
-
+    #
     # for i in keypoints_per_quadrant:
     #     show_image('quadrant', mark_keypoints(i, img2))
 
@@ -460,20 +491,22 @@ def run_fast():
         print()
         print('length of keypoints by first method {}'.format(len(keypoints)))
         print('length of keypoints by second method {}'.format(len(quadrant_kp)))
-        print(len(get_matched_point(keypoints, quadrant_kp)))
-        get_average_distance(keypoints, quadrant_kp)
+        print(len(get_matched_point(quadrant_kp, keypoints)))
+        get_average_distance(quadrant_kp, keypoints)
+        distance = get_minimum_distance(quadrant_kp, keypoints)
+        draw_histogram(distance)
 
         print()
 
 
 
-    show_image(imgpath, mark_keypoints(keypoints, img))
-    show_image('orb', mark_keypoints(orb_kp, img))
-    get_matched_point(orb_kp, keypoints)
-    get_average_distance(keypoints, orb_kp)
-    kp_o1, des1 = get_brief_descriptors(img, keypoints)
-
-    # intensity_centroid(img, kp, 31)
+    # show_image(imgpath, mark_keypoints(keypoints, img))
+    # show_image('orb', mark_keypoints(orb_kp, img))
+    # get_matched_point(orb_kp, keypoints)
+    # get_average_distance(keypoints, orb_kp)
+    # kp_o1, des1 = get_brief_descriptors(img, keypoints)
+    #
+    # # intensity_centroid(img, kp, 31)
     return keypoints, img
 
 
