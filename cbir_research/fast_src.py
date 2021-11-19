@@ -209,14 +209,18 @@ def get_metric():
     return average
 
 
-def fast_test(img, n, threshold, non_max):
+def fast_test(img, n, threshold, non_max, quadrant):
     fast_n = 9
     keypoints = []
     scores = []
     rows, cols = img.shape
+    y_start = 4
+    y_end = rows - 4
+    x_start = 4
+    x_end = cols - 4
 
-    for y in range(4, rows - 4):
-        for x in range(4, cols - 4):
+    for y in range(y_start, y_end):
+        for x in range(x_start, x_end):
             pixel_list = get_pixels(img, y, x, threshold)
             if pixel_list.count(-1) >= fast_n or pixel_list.count(1) >= fast_n:
                 consecutive = [len(list(g)) for _, g in itertools.groupby(pixel_list)]
@@ -404,7 +408,7 @@ def get_matched_point(kp1, kp2):
             distance.append(euclidean_distance((i[0], i[1]), (j[0], j[1])))
         if min(distance) < 5:
             count += 1
-    print('Points found within 5 pixels', count)
+    # print('Points found within 5 pixels', count)
     return count
 
 
@@ -566,7 +570,7 @@ def main():
     _keypoints_list = [[] for _x in range(10)]
     _orb_kp_list = [[] for _x in range(10)]
     _image_sizes = []
-    for img_num in range(0, 2):
+    for img_num in range(0, 10):
         for j in ext_list:
             if exists('test_images/apple_{}.{}'.format(img_num, j)):
                 imgpath = 'test_images/apple_{}.{}'.format(img_num, j)
@@ -584,13 +588,13 @@ def main():
                     elif quadrant == 1:
                         scaled_img = scaled_img[:row // 2, col // 2:]
                     elif quadrant == 2:
-                        scaled_img = scaled_img[row // 2:, : col // 2]
+                        scaled_img = scaled_img[row // 2:, :col // 2]
                     elif quadrant == 3:
                         scaled_img = scaled_img[row // 2:, col // 2:]
 
                     orb_kp = run_orb(scaled_img, 125)
                     orb_len = len(orb_kp)
-                    _kp, _ = fast_test(scaled_img, 250, threshold=20, non_max=1)
+                    _kp, _ = fast_test(scaled_img, 250, threshold=20, non_max=1, quadrant=quadrant)
                     # print("Processing time:", time.process_time() - start)
                     # show_image('fast at: {}'.format(level), mark_keypoints(_kp, scaled_img))
                     harris_kp = harris_corner(scaled_img, _kp, 125, 0.04)
@@ -602,6 +606,7 @@ def main():
                     # show_image('Scale level {}'.format(level + 1), mark_keypoints(current_kp, img))
                     # print('current # of kp: ', len(_keypoints_list))
                     # if level % 2 == 0:
+
                     for i in range(len(harris_kp)):
                         x = harris_kp[i][0]
                         y = harris_kp[i][1]
@@ -631,11 +636,12 @@ def main():
                     for i in current_orb_kp:
                         _orb_kp_list[img_num].append(i)
 
-                    print('quadrant: {}'.format(quadrant))
-                    print('kp found: {}\torb kp found: {}'.format(len(_keypoints_list[img_num]), len(_orb_kp_list[img_num])))
+                    # print('quadrant: {}'.format(quadrant))
+                    # print('kp found: {}\torb kp found: {}'.format(len(_keypoints_list[img_num]),
+                    #                                               len(_orb_kp_list[img_num])))
                     count = get_matched_point(_keypoints_list[img_num], _orb_kp_list[img_num])
-                    print('% of orb kp found: {}'.format(count / len(_orb_kp_list[img_num])))
-                    avg = get_average_distance(_keypoints_list[img_num], _orb_kp_list[img_num])
+                    # print('% of orb kp found: {}'.format(count / len(_orb_kp_list[img_num])))
+                    # avg = get_average_distance(_keypoints_list[img_num], _orb_kp_list[img_num])
 
                     # print('cumulative matches: ', len(matched_points))
                     # show_image('_kp', mark_keypoints(_keypoints_list[img_num], img))
@@ -644,7 +650,9 @@ def main():
                         count_list.append(count)
 
     for i in range(len(count_list)):
-        print('kp: {}\t\torb kp: {}\tmatch count: {}'.format(len(_keypoints_list[i]), len(_orb_kp_list[i]), count_list[i]))
+        print('kp: {}\t\torb kp: {}\tmatch count: {} ({:.4f}%)'.format(len(_keypoints_list[i]), len(_orb_kp_list[i]),
+                                                                       count_list[i],
+                                                                       count_list[i] / len(_orb_kp_list[i])))
 
 
 if __name__ == '__main__':
