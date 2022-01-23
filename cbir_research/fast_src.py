@@ -12,8 +12,28 @@ import pickle
 from matplotlib import pyplot as plt
 from os.path import exists
 import os
+import threading
+import os
+import multiprocessing
 
 import concurrent.futures
+
+
+class ThreadWithReturnValue(threading.Thread):
+    def __init__(self, group=None, target=None, name=None,
+                 args=(), kwargs={}, Verbose=None):
+        threading.Thread.__init__(self, group, target, name, args, kwargs)
+        self._return = None
+
+    def run(self):
+        print(type(self._target))
+        if self._target is not None:
+            self._return = self._target(*self._args,
+                                        **self._kwargs)
+
+    def join(self, *args):
+        threading.Thread.join(self, *args)
+        return self._return
 
 
 # show image on new window
@@ -209,7 +229,7 @@ def get_metric():
     return average
 
 
-def fast_test(img, n, threshold, non_max, quadrant):
+def fast_test(img, n, threshold, non_max):
     fast_n = 9
     keypoints = []
     scores = []
@@ -563,96 +583,181 @@ def get_brief_descriptors(img, coordinates_list):
     return keypoints_objects, des
 
 
+def fast_multi_setup(img, quadrant, row, col, q1, q2, _kp_list, _orb_list):
+    orb_kp = run_orb(img, 125)
+    _kp, _ = fast_test(img, 250, threshold=20, non_max=1)
+    harris_kp = harris_corner(img, _kp, 125, 0.04)
+
+    for i in range(len(harris_kp)):
+        x = harris_kp[i][0]
+        y = harris_kp[i][1]
+        if quadrant == 1:
+            x = x + col // 2
+        elif quadrant == 2:
+            y = y + row // 2
+        elif quadrant == 3:
+            x = x + col // 2
+            y = y + row // 2
+        _kp_list.append((x, y))
+
+    for i in range(len(orb_kp)):
+        x = orb_kp[i][0]
+        y = orb_kp[i][1]
+        if quadrant == 1:
+            x = x + col // 2
+        elif quadrant == 2:
+            y = y + row // 2
+        elif quadrant == 3:
+            x = x + col // 2
+            y = y + row // 2
+        _orb_list.append((x, y))
+
+    q1.put(_kp_list)
+    q2.put(_orb_list)
+
+
 def main():
     # run_fast()
     ext_list = ['jpg', 'png', 'jfif']
     count_list = []
-    _keypoints_list = [[] for _x in range(10)]
-    _orb_kp_list = [[] for _x in range(10)]
+    path = 'test_images/dataset'
+    dir = os.listdir(path)
+    _keypoints_list = [[] for _x in range(len(path))]
+    _orb_kp_list = [[] for _x in range(len(path))]
     _image_sizes = []
-    for img_num in range(0, 10):
-        for j in ext_list:
-            if exists('test_images/apple_{}.{}'.format(img_num, j)):
-                imgpath = 'test_images/apple_{}.{}'.format(img_num, j)
-                img = cv2.imread(imgpath, 0)
-                # look at quadrant at a time
-                _image_sizes.append(img.shape)
-                for quadrant in range(0, 4):
-                    current_kp = []
-                    current_orb_kp = []
-                    scaled_img = img
-                    row, col = img.shape
+    start = time.time()
+    img_num = 0
+    for filename in os.listdir(path):
+        f = os.path.join(path, filename)
 
-                    if quadrant == 0:
-                        scaled_img = scaled_img[:row // 2, :col // 2]
-                    elif quadrant == 1:
-                        scaled_img = scaled_img[:row // 2, col // 2:]
-                    elif quadrant == 2:
-                        scaled_img = scaled_img[row // 2:, :col // 2]
-                    elif quadrant == 3:
-                        scaled_img = scaled_img[row // 2:, col // 2:]
+        if os.path.isfile(f):
+            img = cv2.imread(f, 0)
+            row, col = img.shape
+            img_start = time.time()
+            imgpath = f
+            img = cv2.imread(imgpath, 0)
+            # look at quadrant at a time
+            _image_sizes.append(img.shape)
 
-                    orb_kp = run_orb(scaled_img, 125)
-                    orb_len = len(orb_kp)
-                    _kp, _ = fast_test(scaled_img, 250, threshold=20, non_max=1, quadrant=quadrant)
-                    # print("Processing time:", time.process_time() - start)
-                    # show_image('fast at: {}'.format(level), mark_keypoints(_kp, scaled_img))
-                    harris_kp = harris_corner(scaled_img, _kp, 125, 0.04)
-                    # for i in range(len(harris_kp)):
-                    #     x = int(harris_kp[i][0] * (scale_factor ** level))
-                    #     y = int(harris_kp[i][1] * (scale_factor ** level))
-                    #     _keypoints_list.append((x, y))
-                    #     current_kp.append((x, y))
-                    # show_image('Scale level {}'.format(level + 1), mark_keypoints(current_kp, img))
-                    # print('current # of kp: ', len(_keypoints_list))
-                    # if level % 2 == 0:
+            _kp_list = []
+            _orb_list = []
+            row, col = img.shape
 
-                    for i in range(len(harris_kp)):
-                        x = harris_kp[i][0]
-                        y = harris_kp[i][1]
-                        if quadrant == 1:
-                            x = x + col // 2
-                        elif quadrant == 2:
-                            y = y + row // 2
-                        elif quadrant == 3:
-                            x = x + col // 2
-                            y = y + row // 2
-                        current_kp.append((x, y))
+            q1 = multiprocessing.Queue()
+            q2 = multiprocessing.Queue()
+            quadrants = [img[:row // 2, :col // 2], img[:row // 2, col // 2:],
+                         img[row // 2:, :col // 2], img[row // 2:, col // 2:]]
 
-                    for i in range(len(orb_kp)):
-                        x = orb_kp[i][0]
-                        y = orb_kp[i][1]
-                        if quadrant == 1:
-                            x = x + col // 2
-                        elif quadrant == 2:
-                            y = y + row // 2
-                        elif quadrant == 3:
-                            x = x + col // 2
-                            y = y + row // 2
-                        current_orb_kp.append((x, y))
+            threads = []
+            for i in range(4):
+                threads.append(
+                    multiprocessing.Process(target=fast_multi_setup,
+                                            args=(quadrants[i], i, row, col, q1, q2, _kp_list, _orb_list,)))
 
-                    for i in current_kp:
-                        _keypoints_list[img_num].append(i)
-                    for i in current_orb_kp:
-                        _orb_kp_list[img_num].append(i)
+            for i in threads:
+                i.start()
 
-                    # print('quadrant: {}'.format(quadrant))
-                    # print('kp found: {}\torb kp found: {}'.format(len(_keypoints_list[img_num]),
-                    #                                               len(_orb_kp_list[img_num])))
-                    count = get_matched_point(_keypoints_list[img_num], _orb_kp_list[img_num])
-                    # print('% of orb kp found: {}'.format(count / len(_orb_kp_list[img_num])))
-                    # avg = get_average_distance(_keypoints_list[img_num], _orb_kp_list[img_num])
+            for i in threads:
+                i.join()
 
-                    # print('cumulative matches: ', len(matched_points))
-                    # show_image('_kp', mark_keypoints(_keypoints_list[img_num], img))
-                    # show_image('orb', mark_keypoints(_orb_kp_list[img_num], img))
-                    if quadrant == 3:
-                        count_list.append(count)
+            # _keypoints_list[img_num] += _kp_list
+            # _orb_kp_list[img_num] += _orb_list
+
+            for i in range(4):
+                _keypoints_list[img_num] += q1.get()
+                _orb_kp_list[img_num] += q2.get()
+
+            count = get_matched_point(_keypoints_list[img_num], _orb_kp_list[img_num])
+            count_list.append(count)
+            img_num += 1
+
 
     for i in range(len(count_list)):
-        print('kp: {}\t\torb kp: {}\tmatch count: {} ({:.4f}%)'.format(len(_keypoints_list[i]), len(_orb_kp_list[i]),
-                                                                       count_list[i],
-                                                                       count_list[i] / len(_orb_kp_list[i])))
+        print('kp: {}\t\torb kp: {}\tmatch count: {} ({:.4f}%)\t {}'.format(len(_keypoints_list[i]), len(_orb_kp_list[i]),
+                                                                            count_list[i],
+                                                                            count_list[i] / len(_orb_kp_list[i]),
+                                                                            time.time() - img_start))
+
+    print("Processing time:", time.time() - start)
+
+
+
+
+#             for quadrant in range(0, 4):
+#                 current_kp = []
+#                 current_orb_kp = []
+#                 scaled_img = img
+#                 row, col = img.shape
+#
+#                 if quadrant == 0:
+#                     scaled_img = scaled_img[:row // 2, :col // 2]
+#                 elif quadrant == 1:
+#                     scaled_img = scaled_img[:row // 2, col // 2:]
+#                 elif quadrant == 2:
+#                     scaled_img = scaled_img[row // 2:, :col // 2]
+#                 elif quadrant == 3:
+#                     scaled_img = scaled_img[row // 2:, col // 2:]
+#
+#                 orb_kp = run_orb(scaled_img, 125)
+#                 orb_len = len(orb_kp)
+#                 _kp, _ = fast_test(scaled_img, 250, threshold=20, non_max=1)
+#                 # print("Processing time:", time.process_time() - start)
+#                 # show_image('fast at: {}'.format(level), mark_keypoints(_kp, scaled_img))
+#                 harris_kp = harris_corner(scaled_img, _kp, 125, 0.04)
+#                 # for i in range(len(harris_kp)):
+#                 #     x = int(harris_kp[i][0] * (scale_factor ** level))
+#                 #     y = int(harris_kp[i][1] * (scale_factor ** level))
+#                 #     _keypoints_list.append((x, y))
+#                 #     current_kp.append((x, y))
+#                 # show_image('Scale level {}'.format(level + 1), mark_keypoints(current_kp, img))
+#                 # print('current # of kp: ', len(_keypoints_list))
+#                 # if level % 2 == 0:
+#
+#                 for i in range(len(harris_kp)):
+#                     x = harris_kp[i][0]
+#                     y = harris_kp[i][1]
+#                     if quadrant == 1:
+#                         x = x + col // 2
+#                     elif quadrant == 2:
+#                         y = y + row // 2
+#                     elif quadrant == 3:
+#                         x = x + col // 2
+#                         y = y + row // 2
+#                     current_kp.append((x, y))
+#
+#                 for i in range(len(orb_kp)):
+#                     x = orb_kp[i][0]
+#                     y = orb_kp[i][1]
+#                     if quadrant == 1:
+#                         x = x + col // 2
+#                     elif quadrant == 2:
+#                         y = y + row // 2
+#                     elif quadrant == 3:
+#                         x = x + col // 2
+#                         y = y + row // 2
+#                     current_orb_kp.append((x, y))
+#
+#                 _keypoints_list[img_num] += current_kp
+#                 _orb_kp_list[img_num] += current_orb_kp
+#
+#                 # print('quadrant: {}'.format(quadrant))
+#                 # print('kp found: {}\torb kp found: {}'.format(len(_keypoints_list[img_num]),
+#                 #                                               len(_orb_kp_list[img_num])))
+#                 count = get_matched_point(_keypoints_list[img_num], _orb_kp_list[img_num])
+#                 # print('% of orb kp found: {}'.format(count / len(_orb_kp_list[img_num])))
+#                 # avg = get_average_distance(_keypoints_list[img_num], _orb_kp_list[img_num])
+#
+#                 # print('cumulative matches: ', len(matched_points))
+#                 # show_image('_kp', mark_keypoints(_keypoints_list[img_num], img))
+#                 # show_image('orb', mark_keypoints(_orb_kp_list[img_num], img))
+#                 if quadrant == 3:
+#                     count_list.append(count)
+#
+# for i in range(len(count_list)):
+#     print('kp: {}\t\torb kp: {}\tmatch count: {} ({:.4f}%)'.format(len(_keypoints_list[i]), len(_orb_kp_list[i]),
+#                                                                    count_list[i],
+#                                                                    count_list[i] / len(_orb_kp_list[i])))
+# print("Processing time:", time.time() - start)
 
 
 if __name__ == '__main__':
