@@ -68,7 +68,17 @@ with itensities either above or below the threshold.
 '''
 
 
-def set_up_scales(img, scale_factor, nlevels, nfeatures):
+def fast_multi_scale_setup(img, level, n, sf, q1):
+    _kp, _ = fast_test(img, n, threshold=20, non_max=1)
+    harris_kp = harris_corner(img, _kp, n, 0.04)
+    kp_scaled_up = []
+    for i in range(len(harris_kp)):
+        x = int(harris_kp[i][0] * (sf ** level))
+        y = int(harris_kp[i][1] * (sf ** level))
+        kp_scaled_up.append((x, y))
+    q1.put(kp_scaled_up)
+
+def set_up_scales_multi(img, scale_factor, nlevels, nfeatures):
     orb_kp = run_orb(img, nfeatures)
     factor = 1.0 / scale_factor
     ndesired_features_per_scale = nfeatures * (1 - factor) / (1 - factor ** nlevels)
@@ -80,45 +90,71 @@ def set_up_scales(img, scale_factor, nlevels, nfeatures):
         sum_features += nfeatures_per_level[level]
         ndesired_features_per_scale *= factor
     nfeatures_per_level.append(max(nfeatures - sum_features, 0))
-
-    _keypoints_list = []
     rows, cols = img.shape
     _matched_list = []
     ratio_list = []
+    _keypoints_list = []
+    scaled_images = []
 
     for level in range(nlevels):
-        print(level)
-        current_kp = []
-        scaled_img = img
         w = int(cols / scale_factor ** level)
-        scaled_img = imutils.resize(scaled_img, width=w)
-        start = time.process_time()
-        _kp, _ = fast_test(scaled_img, nfeatures_per_level[level] * 2, threshold=20, non_max=1)
-        # print("Processing time:", time.process_time() - start)
-        # show_image('fast at: {}'.format(level), mark_keypoints(_kp, scaled_img))
-        harris_kp = harris_corner(scaled_img, _kp, nfeatures_per_level[level], 0.04)
-        for i in range(len(harris_kp)):
-            x = int(harris_kp[i][0] * (scale_factor ** level))
-            y = int(harris_kp[i][1] * (scale_factor ** level))
-            _keypoints_list.append((x, y))
-            current_kp.append((x, y))
-        # show_image('Scale level {}'.format(level + 1), mark_keypoints(current_kp, img))
-        # print('current # of kp: ', len(_keypoints_list))
-        # if level % 2 == 0:
-        matched_points = get_matched_point(orb_kp, _keypoints_list)
-        # get_average_distance(_keypoints_list, orb_kp)
-        # print('cumulative matches: ', len(matched_points))
-        _matched_list.append(len(matched_points))
-    for level in range(nlevels):
-        ratio_list.append(_matched_list[level] / max(_matched_list))
-        # if len(matched_points) > nfeatures/4:
-        #     break
-        # some conversion to OPENCV's keypoint object
-        # pass them into brief
-        # show_image('harris at: {}'.format(level), mark_keypoints(harris_kp, scaled_img))
-    print('length', len(_keypoints_list))
-    return _keypoints_list, ratio_list
+        scaled_images.append(imutils.resize(img, width=w))
 
+
+
+    q1 = multiprocessing.Queue()
+    threads = []
+
+    for i in range(8):
+        threads.append(multiprocessing.Process(target=fast_multi_scale_setup, args=(
+        scaled_images[i], i, nfeatures_per_level[i] * 2, scale_factor, q1)))
+
+    for i in threads:
+        i.start()
+
+    for i in threads:
+        i.join()
+
+    for i in range(8):
+        _keypoints_list+= q1.get()
+    print(_keypoints_list)
+    print(len(_keypoints_list))
+    show_image('', mark_keypoints(_keypoints_list, img))
+
+    #
+    # for level in range(nlevels):
+    #     print(level)
+    #     current_kp = []
+    #     scaled_img = img
+    #     w = int(cols / scale_factor ** level)
+    #     scaled_img = imutils.resize(scaled_img, width=w)
+    #     start = time.process_time()
+    #     _kp, _ = fast_test(scaled_img, nfeatures_per_level[level] * 2, threshold=20, non_max=1)
+    #     # print("Processing time:", time.process_time() - start)
+    #     # show_image('fast at: {}'.format(level), mark_keypoints(_kp, scaled_img))
+    #     harris_kp = harris_corner(scaled_img, _kp, nfeatures_per_level[level], 0.04)
+    #     for i in range(len(harris_kp)):
+    #         x = int(harris_kp[i][0] * (scale_factor ** level))
+    #         y = int(harris_kp[i][1] * (scale_factor ** level))
+    #         _keypoints_list.append((x, y))
+    #         current_kp.append((x, y))
+    #     # show_image('Scale level {}'.format(level + 1), mark_keypoints(current_kp, img))
+    #     # print('current # of kp: ', len(_keypoints_list))
+    #     # if level % 2 == 0:
+    #     matched_points = get_matched_point(orb_kp, _keypoints_list)
+    #     # get_average_distance(_keypoints_list, orb_kp)
+    #     # print('cumulative matches: ', len(matched_points))
+    #     _matched_list.append(len(matched_points))
+    # for level in range(nlevels):
+    #     ratio_list.append(_matched_list[level] / max(_matched_list))
+    #     # if len(matched_points) > nfeatures/4:
+    #     #     break
+    #     # some conversion to OPENCV's keypoint object
+    #     # pass them into brief
+    #     # show_image('harris at: {}'.format(level), mark_keypoints(harris_kp, scaled_img))
+    # print('length', len(_keypoints_list))
+    # return _keypoints_list, ratio_list
+    return _keypoints_list, ''
 
 # def set_up_scales(img, scale_factor, nlevels, nfeatures):
 #     orb_kp = run_orb(img, nfeatures)
@@ -482,12 +518,13 @@ def run_orb(img, nfeatures):
 
 
 def run_fast():
-    f = 'apple'
-    imgpath = 'test_images/{}.jpg'.format(f)
+    f = 'apple_0'
+    imgpath = 'test_images/dataset/{}.jpg'.format(f)
     img = cv2.imread(imgpath, 0)
 
     orb_kp = run_orb(img, 500)
-    keypoints, _ = set_up_scales(img, scale_factor=1.2, nlevels=8, nfeatures=500)
+    keypoints, _ = set_up_scales_multi(img, scale_factor=1.2, nlevels=8, nfeatures=500)
+    print(keypoints)
 
     img2 = cv2.imread(imgpath, 0)
     row, col = img2.shape
@@ -583,8 +620,8 @@ def get_brief_descriptors(img, coordinates_list):
     return keypoints_objects, des
 
 
-def fast_multi_setup(img, quadrant, row, col, q1, q2, _kp_list, _orb_list):
-    orb_kp = run_orb(img, 125)
+def fast_multi_setup(img, quadrant, row, col, q1, _kp_list):
+    # orb_kp = run_orb(img, 125)
     _kp, _ = fast_test(img, 250, threshold=20, non_max=1)
     harris_kp = harris_corner(img, _kp, 125, 0.04)
 
@@ -592,95 +629,91 @@ def fast_multi_setup(img, quadrant, row, col, q1, q2, _kp_list, _orb_list):
         x = harris_kp[i][0]
         y = harris_kp[i][1]
         if quadrant == 1:
-            x = x + col // 2
-        elif quadrant == 2:
             y = y + row // 2
-        elif quadrant == 3:
-            x = x + col // 2
-            y = y + row // 2
+
         _kp_list.append((x, y))
 
-    for i in range(len(orb_kp)):
-        x = orb_kp[i][0]
-        y = orb_kp[i][1]
-        if quadrant == 1:
-            x = x + col // 2
-        elif quadrant == 2:
-            y = y + row // 2
-        elif quadrant == 3:
-            x = x + col // 2
-            y = y + row // 2
-        _orb_list.append((x, y))
+    # for i in range(len(orb_kp)):
+    #     x = orb_kp[i][0]
+    #     y = orb_kp[i][1]
+    #     if quadrant == 1:
+    #         x = x + col // 2
+    #     elif quadrant == 2:
+    #         y = y + row // 2
+    #     elif quadrant == 3:
+    #         x = x + col // 2
+    #         y = y + row // 2
+    #     _orb_list.append((x, y))
 
     q1.put(_kp_list)
-    q2.put(_orb_list)
+    # q2.put(_orb_list)
 
 
 def main():
-    # run_fast()
-    ext_list = ['jpg', 'png', 'jfif']
-    count_list = []
-    path = 'test_images/dataset'
-    dir = os.listdir(path)
-    _keypoints_list = [[] for _x in range(len(path))]
-    _orb_kp_list = [[] for _x in range(len(path))]
-    _image_sizes = []
-    start = time.time()
-    img_num = 0
-    for filename in os.listdir(path):
-        f = os.path.join(path, filename)
-
-        if os.path.isfile(f):
-            img = cv2.imread(f, 0)
-            row, col = img.shape
-            img_start = time.time()
-            imgpath = f
-            img = cv2.imread(imgpath, 0)
-            # look at quadrant at a time
-            _image_sizes.append(img.shape)
-
-            _kp_list = []
-            _orb_list = []
-            row, col = img.shape
-
-            q1 = multiprocessing.Queue()
-            q2 = multiprocessing.Queue()
-            quadrants = [img[:row // 2, :col // 2], img[:row // 2, col // 2:],
-                         img[row // 2:, :col // 2], img[row // 2:, col // 2:]]
-
-            threads = []
-            for i in range(4):
-                threads.append(
-                    multiprocessing.Process(target=fast_multi_setup,
-                                            args=(quadrants[i], i, row, col, q1, q2, _kp_list, _orb_list,)))
-
-            for i in threads:
-                i.start()
-
-            for i in threads:
-                i.join()
-
-            # _keypoints_list[img_num] += _kp_list
-            # _orb_kp_list[img_num] += _orb_list
-
-            for i in range(4):
-                _keypoints_list[img_num] += q1.get()
-                _orb_kp_list[img_num] += q2.get()
-
-            count = get_matched_point(_keypoints_list[img_num], _orb_kp_list[img_num])
-            count_list.append(count)
-            img_num += 1
-
-
-    for i in range(len(count_list)):
-        print('kp: {}\t\torb kp: {}\tmatch count: {} ({:.4f}%)\t {}'.format(len(_keypoints_list[i]), len(_orb_kp_list[i]),
-                                                                            count_list[i],
-                                                                            count_list[i] / len(_orb_kp_list[i]),
-                                                                            time.time() - img_start))
-
-    print("Processing time:", time.time() - start)
-
-
+    run_fast()
+    # ext_list = ['jpg', 'png', 'jfif']
+    # count_list = []
+    # path = 'test_images/dataset'
+    # dir = os.listdir(path)
+    # _keypoints_list = [[] for _x in range(len(dir))]
+    # _orb_kp_list = [[] for _x in range(len(dir))]
+    # _image_sizes = []
+    # start = time.time()
+    # img_num = 0
+    # print(len(path))
+    # print(len(dir))
+    # for filename in os.listdir(path):
+    #     f = os.path.join(path, filename)
+    #
+    #     if os.path.isfile(f):
+    #         img = cv2.imread(f, 0)
+    #         row, col = img.shape
+    #         img_start = time.time()
+    #         imgpath = f
+    #         img = cv2.imread(imgpath, 0)
+    #         # look at quadrant at a time
+    #         _image_sizes.append(img.shape)
+    #
+    #         _kp_list = []
+    #         # _orb_list = []
+    #         row, col = img.shape
+    #
+    #         q1 = multiprocessing.Queue()
+    #         # q2 = multiprocessing.Queue()
+    #         quadrants = [img[:row // 2, :col],
+    #                      img[row // 2:, :col]]
+    #
+    #         threads = []
+    #         for i in range(2):
+    #             threads.append(
+    #                 multiprocessing.Process(target=fast_multi_setup,
+    #                                         args=(quadrants[i], i, row, col, q1, _kp_list)))
+    #
+    #         for i in threads:
+    #             i.start()
+    #
+    #         for i in threads:
+    #             i.join()
+    #
+    #         # _keypoints_list[img_num] += _kp_list
+    #         # _orb_kp_list[img_num] += _orb_list
+    #
+    #         for i in range(2):
+    #             _keypoints_list[img_num] += q1.get()
+    #             # _orb_kp_list[img_num] += q2.get()
+    #
+    #         # count = get_matched_point(_keypoints_list[img_num], _orb_kp_list[img_num])
+    #         # count_list.append(count)
+    #         img_num += 1
+    #
+    #
+    # # for i in range(len(count_list)):
+    # #     print('kp: {}\t\torb kp: {}\tmatch count: {} ({:.4f}%)\t {}'.format(len(_keypoints_list[i]), len(_orb_kp_list[i]),
+    # #                                                                         count_list[i],
+    # #                                                                         count_list[i] / len(_orb_kp_list[i]),
+    # #                                                                         time.time() - img_start))
+    #
+    # print("Processing time:", time.time() - start)
 
 
 #             for quadrant in range(0, 4):

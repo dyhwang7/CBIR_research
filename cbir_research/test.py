@@ -55,10 +55,25 @@
 # MPI.Finalize
 
 import os
+import cv2
+# l = []
+# x = 15
+# for i in range (x):
+#     l.append(i)
+# print(l[:x])
+#
 
 
-for filename in os.listdir('test_images/apples'):
-    f = os.path.join('test_images/apples', filename)
+r = 0
+c = 0
+for filename in os.listdir('test_images/dataset'):
+    f = os.path.join('test_images/dataset', filename)
 
     if os.path.isfile(f):
         print(f)
+        img = cv2.imread(f, 0)
+        row, col = img.shape
+        r += row
+        c += col
+l = len(os.listdir('test_images/dataset'))
+print(l, r/l, c/l)
